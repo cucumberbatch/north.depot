@@ -11,10 +11,10 @@ package io.github.cucumberbatch.north.depot.api;
  * <p>Typical usage:
  * <pre>{@code
  *     // Read-only movement system (can run in parallel)
- *     QueryResult<EntityId> movement = em.queryAllWith(Position.class, Velocity.class, AccessType.READ);
+ *     View<EntityId> movement  = em.view(Position.class, Velocity.class, AccessType.READ);
  *
  *     // Collision system that writes to Position (exclusive access)
- *     QueryResult<EntityId> collision = em.queryAllWith(Position.class, Collider.class, AccessType.WRITE);
+ *     View<EntityId> collision = em.view(Position.class, Collider.class, AccessType.WRITE);
  * }</pre></p>
  */
 public enum AccessType {
