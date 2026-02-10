@@ -28,6 +28,8 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
 
     @SuppressWarnings("unchecked")
     @Override public <C> C add(E entity, C component) {
+        checkEntityAndComponentNotNull(entity, component);
+        
         Class<C> type = (Class<C>) component.getClass();
         Archetype oldArchetype = archetypeStorage.getArchetype(entity);
         archetypeStorage.moveToNewArchetype(entity, oldArchetype, type);
@@ -36,14 +38,20 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
     }
 
     @Override public <C> C get(E entity, Class<C> type) {
+        checkEntityAndComponentTypeNotNull(entity, type);
+        
         return components.get(entity, type);
     }
 
     @Override public <C> boolean has(E entity, Class<C> type) {
+        checkEntityAndComponentTypeNotNull(entity, type);
+        
         return archetypeStorage.hasComponent(entity, type);
     }
 
     @Override public <C> boolean remove(E entity, Class<C> type) {
+        checkEntityAndComponentTypeNotNull(entity, type);
+        
         Archetype archetype = archetypeStorage.getArchetype(entity);
         if (!archetype.contains(type)) return false;
         archetypeStorage.moveToNewArchetype(entity, archetype, type);
@@ -51,15 +59,28 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
         return true;
     }
 
+    
+    private <E, C> void checkEntityAndComponentNotNull(E entity, C component) {
+        if (entity == null || component == null) {
+            throw new NullPointerException("Provided entity and component must not be null!");
+        }
+    }
+
+    private <E, C> void checkEntityAndComponentTypeNotNull(E entity, Class<C> type) {
+        if (entity == null || type == null) {
+            throw new NullPointerException("Provided entity and component type must not be null!");
+        }
+    }
+
     static final class QueryView<E> implements View<E> {
         private final SimpleEntityManager<E> manager;
-        private final List<E>                matchingEntities;
+        private final Iterator<E>            entityIterator;
 
         QueryView(SimpleEntityManager<E> manager,
                   ArchetypeStorage<E>    storage,
                   Set<Class<?>>          required) {
-            this.manager          = manager;
-            this.matchingEntities = storage.getMatchingEntities(required);
+            this.manager        = manager;
+            this.entityIterator = storage.getMatchingEntitiesIterator(required);
         }
 
         @Override public <C> Accessor<E, C> accessor(Class<C> type) {
@@ -74,11 +95,8 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             };
         }
 
-        @Override public Iterator<E> iterator() {
-            return matchingEntities.iterator();
-        }
-
-        @Override public void close() {}
+        @Override public Iterator<E> iterator() { return entityIterator; }
+        @Override public void        close()    {}
     }
 
     static final class BatchSpawn<E> implements Spawn<E> {
@@ -169,7 +187,7 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
     }
 
     static final class ArchetypeStorage<E> {
-        private final Map<E, Set<Class<?>>> entityTypes = new HashMap<>();
+        private final Map<E, Set<Class<?>>>       entityTypes     = new HashMap<>();
         private final Map<Set<Class<?>>, List<E>> archetypeGroups = new HashMap<>();
 
         Archetype getArchetype(E entity) {
@@ -182,18 +200,12 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
 
         void moveToNewArchetype(E entity, Archetype oldArchetype, Class<?> change) {
             Set<Class<?>> oldTypes = oldArchetype.types;
-            Set<Class<?>> newTypes = change == null
-                    ? removeType(oldTypes, change)
-                    : addOrRemoveType(oldTypes, change);
+            Set<Class<?>> newTypes = addOrRemoveType(oldTypes, change);
 
-            // Remove from old group
             Optional.ofNullable(archetypeGroups.get(oldTypes))
                     .ifPresent(entities -> entities.remove(entity));
 
-            // Update entity types
             entityTypes.put(entity, newTypes);
-
-            // Add to new group
             archetypeGroups.computeIfAbsent(newTypes, k -> new ArrayList<>()).add(entity);
         }
 
@@ -207,18 +219,13 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             return copy;
         }
 
-        private Set<Class<?>> removeType(Set<Class<?>> types, Class<?> type) {
-            Set<Class<?>> copy = new HashSet<>(types);
-            copy.remove(type);
-            return copy.isEmpty() ? Set.of() : copy;
-        }
-
-        List<E> getMatchingEntities(Set<Class<?>> requiredTypes) {
+        Iterator<E> getMatchingEntitiesIterator(Set<Class<?>> requiredTypes) {
             return archetypeGroups.entrySet().stream()
                     .filter(entry -> entry.getKey().containsAll(requiredTypes))
                     .flatMap(entry -> entry.getValue().stream())
-                    .collect(Collectors.toList());
+                    .iterator();
         }
+
     }
 
     static final class EntityFactory<E> {
