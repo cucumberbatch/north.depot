@@ -111,7 +111,6 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
         private final ArchetypeStorage<E>    storage;
         private final EntityFactory<E>       factory;
         private final Archetype              archetype;
-        private final List<E>                batch;
 
         BatchSpawn(SimpleEntityManager<E> manager,
                    ArchetypeStorage<E>    storage,
@@ -121,7 +120,6 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             this.storage   = storage;
             this.archetype = archetype;
             this.factory   = factory;
-            this.batch     = new ArrayList<>();
         }
 
         @Override public <C> Linker<E, C> linker(Class<C> type) {
@@ -149,11 +147,10 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
         @Override public E spawn() {
             E entity = factory.create();
             storage.registerInArchetype(entity, archetype);
-            batch.add(entity);
             return entity;
         }
 
-        @Override public void close() { batch.clear(); }
+        @Override public void close() { /* todo: deferred registration of spawned entities */ }
     }
 
     static final class Archetype {
