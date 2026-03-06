@@ -2,7 +2,6 @@ package io.github.cucumberbatch.north.depot.api;
 
 import io.github.cucumberbatch.north.depot.api.impl.SimpleEntityManager;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.Iterator;
@@ -12,6 +11,8 @@ import java.util.Set;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestEntityManagerApi {
    
@@ -34,14 +35,14 @@ public class TestEntityManagerApi {
 
     @Test
     public void testEntityManagerCreation() {
-        Assertions.assertDoesNotThrow(() ->
+        assertDoesNotThrow(() ->
                 new SimpleEntityManager<>(Entity::new, Entity::getId)
         );
     }
 
     @Test
     public void testIntEntityManagerCreation() {
-        Assertions.assertDoesNotThrow(() ->
+        assertDoesNotThrow(() ->
                 new SimpleEntityManager<>(Integer::valueOf, Integer::intValue)
         );
     }
@@ -57,10 +58,10 @@ public class TestEntityManagerApi {
             singleEntityId = spawn.spawn();
         }
 
-        Assertions.assertNotNull(singleEntityId, "Id of created entity must not be null!");
+        assertNotNull(singleEntityId, "Id of created entity must not be null!");
 
         // not sure about that...
-        //Assertions.assertEquals(1, singleEntityId, "The first entity generated via entity manager must have an id=1!");
+        //assertEquals(1, singleEntityId, "The first entity generated via entity manager must have an id=1!");
     }
 
     @Test
@@ -79,10 +80,10 @@ public class TestEntityManagerApi {
         Position createdPosition = manager.add(singleEntityId, position);
 
         // added Transform must be linked with existing entity
-        Assertions.assertTrue(manager.has(singleEntityId, Position.class), "Previously added component must be linked with created entity!");
-        Assertions.assertNotNull(manager.get(singleEntityId, Position.class), "Of course, a component instance that was linked with entity must be returned on manager.get() call!");
-        Assertions.assertSame(position, createdPosition, "The component which returned by add() method must be the same as provided!");
-        Assertions.assertSame(position, manager.get(singleEntityId, Position.class), "A returned component on manager.get() call must be identical to the created one!");
+        assertTrue(manager.has(singleEntityId, Position.class), "Previously added component must be linked with created entity!");
+        assertNotNull(manager.get(singleEntityId, Position.class), "Of course, a component instance that was linked with entity must be returned on manager.get() call!");
+        assertSame(position, createdPosition, "The component which returned by add() method must be the same as provided!");
+        assertSame(position, manager.get(singleEntityId, Position.class), "A returned component on manager.get() call must be identical to the created one!");
     }
 
     @Test
@@ -110,9 +111,9 @@ public class TestEntityManagerApi {
             }
         }
         
-        Assertions.assertEquals(1, entityCount, "There must be only one created entity with Position component!");
-        Assertions.assertNotNull(foundPosition, "An entity was created with a Position component, and the view() is accessing only those entities which MUST contains components of provided types. So it must be not null!");
-        Assertions.assertSame(position, foundPosition, "Created component and the found one must be the same!");
+        assertEquals(1, entityCount, "There must be only one created entity with Position component!");
+        assertNotNull(foundPosition, "An entity was created with a Position component, and the view() is accessing only those entities which MUST contains components of provided types. So it must be not null!");
+        assertSame(position, foundPosition, "Created component and the found one must be the same!");
     }
 
     @Test
@@ -138,7 +139,7 @@ public class TestEntityManagerApi {
             for (Integer entity : view) actualEntityCount++;
         }
 
-        Assertions.assertEquals(expectedEntityCount, actualEntityCount, "Created and queried entities count does not match!");
+        assertEquals(expectedEntityCount, actualEntityCount, "Created and queried entities count does not match!");
 
         Integer firstFoundEntity = null;
         try (View<Integer> view = manager.view(Position.class)) { firstFoundEntity = view.iterator().next(); }
@@ -159,8 +160,8 @@ public class TestEntityManagerApi {
         }
 
 
-        Assertions.assertEquals(1, velocitiesCount, "There must be only one entity with Velocity component!");
-        Assertions.assertEquals(9, positionsCount, "There must be less entities with Position component than before because of removing one!");
+        assertEquals(1, velocitiesCount, "There must be only one entity with Velocity component!");
+        assertEquals(9, positionsCount, "There must be less entities with Position component than before because of removing one!");
     }
 
     @Test
@@ -227,5 +228,61 @@ public class TestEntityManagerApi {
         }
     
     }
+
+    @Test
+    public void testSpawnedEntityContainsComponents() {
+        EntityManager<Integer> manager =
+                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+
+        try (Spawn<Integer> spawn = manager.spawn(Position.class, Velocity.class)) {
+            Integer entityHandle = spawn.spawn();
+
+            assertTrue(manager.has(entityHandle, Position.class));
+            assertTrue(manager.has(entityHandle, Velocity.class));
+            assertFalse(manager.has(entityHandle, Health.class));            
+        }
+    }
+    
+    @Test
+    public void testSpawnedEntityComponentAddition() {
+        EntityManager<Integer> manager =
+                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+
+        try (Spawn<Integer> spawn = manager.spawn(Position.class)) {
+            Integer entityHandle = spawn.spawn();
+
+            assertTrue(manager.has(entityHandle, Position.class));
+            assertFalse(manager.has(entityHandle, Velocity.class));
+
+            manager.add(entityHandle, new Velocity());
+            
+            assertTrue(manager.has(entityHandle, Position.class));            
+            assertTrue(manager.has(entityHandle, Velocity.class));            
+        }
+    }
+
+    @Test
+    public void testSpawnedEntityComponentLinkageAndRemoval() {
+        EntityManager<Integer> manager =
+                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+
+        try (Spawn<Integer> spawn = manager.spawn(Position.class)) {
+            Integer entityHandle = spawn.spawn();
+
+            assertTrue(manager.has(entityHandle, Position.class));
+            assertFalse(manager.has(entityHandle, Velocity.class));
+
+            Linker<Integer, Velocity> linker = spawn.linker(Velocity.class);
+            linker.linkTo(entityHandle, new Velocity());
+            
+            assertTrue(manager.has(entityHandle, Position.class));            
+            assertTrue(manager.has(entityHandle, Velocity.class));
+
+            assertDoesNotThrow(() -> {
+                assertNotNull(manager.get(entityHandle, Velocity.class));
+            });
+        }
+    }
+
 
 }
