@@ -105,7 +105,7 @@ public class TestEntityManagerApi {
         Position foundPosition = null;
         try (View<Integer> view = manager.view(Position.class)) {
             Accessor<Integer, Position> pos = view.accessor(Position.class);
-            for (Integer entity : view) {
+            for (Integer entity: view) {
                 foundPosition = pos.get(entity);
                 entityCount++;
             }
@@ -129,14 +129,14 @@ public class TestEntityManagerApi {
                 Position position = new Position();
                 position.x = count + 1f;
                 position.y = count + 1f;
-                pos.linkTo(spawn.spawn(), position);
+                pos.link(spawn.spawn(), position);
             }
         }
 
         //checking if those entities have this components
         int actualEntityCount = 0;
         try (View<Integer> view = manager.view(Position.class)) {
-            for (Integer entity : view) actualEntityCount++;
+            for (Integer entity: view) actualEntityCount++;
         }
 
         assertEquals(expectedEntityCount, actualEntityCount, "Created and queried entities count does not match!");
@@ -150,13 +150,13 @@ public class TestEntityManagerApi {
 
         int velocitiesCount = 0;
         try (View<Integer> view = manager.view(Velocity.class)) {
-            for (Integer entity : view) velocitiesCount++;
+            for (Integer entity: view) velocitiesCount++;
         }
 
         
         int positionsCount = 0;
         try (View<Integer> view = manager.view(Position.class)) {
-            for (Integer entity : view) positionsCount++;
+            for (Integer entity: view) positionsCount++;
         }
 
 
@@ -190,8 +190,8 @@ public class TestEntityManagerApi {
                 velocity.dx = rng.nextFloat();
                 velocity.dy = rng.nextFloat();
 
-                positions.linkTo(entity, position);
-                velocities.linkTo(entity, velocity);
+                positions.link(entity, position);
+                velocities.link(entity, velocity);
 
                 components = List.of(position, velocity);
 
@@ -211,7 +211,7 @@ public class TestEntityManagerApi {
             Accessor<Entity, Position> positions  = view.accessor(Position.class, AccessType.WRITE);
 
             // Итерирование по полученному результату (набору сущностей из итерируемой коллекции архетипов/таблиц)
-            for (Entity entity : view) {
+            for (Entity entity: view) {
 
                 // Возможно обращение к entity
                 long entityId = entity.getId();
@@ -272,8 +272,8 @@ public class TestEntityManagerApi {
             assertTrue(manager.has(entityHandle, Position.class));
             assertFalse(manager.has(entityHandle, Velocity.class));
 
-            Linker<Integer, Velocity> linker = spawn.linker(Velocity.class);
-            linker.linkTo(entityHandle, new Velocity());
+            spawn.linker(Velocity.class)
+                 .link(entityHandle, new Velocity());
             
             assertTrue(manager.has(entityHandle, Position.class));            
             assertTrue(manager.has(entityHandle, Velocity.class));

@@ -12,7 +12,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
-import java.util.stream.Collectors;
 
 public final class SimpleEntityManager<E> implements EntityManager<E> {
     private final EntityFactory<E>    factory;
@@ -67,13 +66,13 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
     }
 
     
-    private <E, C> void checkEntityAndComponentNotNull(E entity, C component) {
+    private <C> void checkEntityAndComponentNotNull(E entity, C component) {
         if (entity == null || component == null) {
             throw new NullPointerException("Provided entity and component must not be null!");
         }
     }
 
-    private <E, C> void checkEntityAndComponentTypeNotNull(E entity, Class<C> type) {
+    private <C> void checkEntityAndComponentTypeNotNull(E entity, Class<C> type) {
         if (entity == null || type == null) {
             throw new NullPointerException("Provided entity and component type must not be null!");
         }
@@ -124,7 +123,7 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
 
         @Override public <C> Linker<E, C> linker(Class<C> type) {
             return new Linker<>() {
-                @Override public void     linkTo(E e, C c)   { manager.add(e, c); }
+                @Override public void     link(E e, C c)     { manager.add(e, c); }
                 @Override public Class<C> getComponentType() { return type; }
             };
         }
