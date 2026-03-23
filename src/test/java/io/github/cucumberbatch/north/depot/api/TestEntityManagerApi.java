@@ -117,6 +117,54 @@ public class TestEntityManagerApi {
     }
 
     @Test
+    public void testViewExceptFiltersEntities() {
+        EntityManager<Integer> manager =
+                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+
+        int positionOnlyCount = 5;
+        int positionAndVelocityCount = 2;
+
+        try (Spawn<Integer> spawn = manager.spawn(Position.class)) {
+            Linker<Integer, Position> pos = spawn.linker(Position.class);
+            for (int i = 0; i < positionOnlyCount; i++) {
+                Integer entity = spawn.spawn();
+                Position position = new Position();
+                position.x = i + 1f;
+                position.y = i + 1f;
+                pos.link(entity, position);
+            }
+        }
+
+        try (Spawn<Integer> spawn = manager.spawn(Position.class, Velocity.class)) {
+            Linker<Integer, Position> pos = spawn.linker(Position.class);
+            Linker<Integer, Velocity> vel = spawn.linker(Velocity.class);
+            for (int i = 0; i < positionAndVelocityCount; i++) {
+                Integer entity = spawn.spawn();
+
+                Position position = new Position();
+                position.x = i + 10f;
+                position.y = i + 10f;
+
+                Velocity velocity = new Velocity();
+                velocity.dx = i + 0.1f;
+                velocity.dy = i + 0.1f;
+
+                pos.link(entity, position);
+                vel.link(entity, velocity);
+            }
+        }
+
+        int actualCount = 0;
+        try (View<Integer> view = manager.view(Position.class).except(Velocity.class)) {
+            for (Integer entity : view) {
+                actualCount++;
+            }
+        }
+
+        assertEquals(positionOnlyCount, actualCount, "except(...) should remove entities containing excluded components");
+    }
+
+    @Test
     public void testEntityCreationWithComponentsUsingLinker() {
         EntityManager<Integer> manager =
                 new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
@@ -165,21 +213,30 @@ public class TestEntityManagerApi {
     }
 
     @Test
-    public void testEntityQueryInSingleThread() {
-        EntityManager<Entity> entityManager =
+    public void testEntireEntityManagerApi() {
+        // Создание простого менеджера сущностей. Пользователь предоставляет функцию создания сущностей своего типа, а так же метод получения идентификатора этой сущности
+        EntityManager<Entity> manager =
                 new SimpleEntityManager<>(Entity::new, Entity::getId);
 
         int entityCount = 1;
 
         int createdEntityCount = 0;
-        try (Spawn<Entity> spawn = entityManager.spawn(Position.class, Velocity.class)) {
+
+        // Создание самих сущностей происходит через менеджер сущностей. Для этого вызывается метод spawn, принимающий vararg массив типов компонентов для предварительного размещения новых сущностей в специфическом архетипе. Метод возвращает AutoCloseable, поэтому используется конструкция try-with-resources.
+        try (Spawn<Entity> spawn = manager.spawn(Position.class, Velocity.class)) {
+            
+            // Процесс связывания настоящих компонентов с сущностями лежит на пользователе, менеджер сущностей не занимается их созданием. Для этого используется механизм связывания через параметризированный Linker
             Linker<Entity, Position> positions  = spawn.linker(Position.class);
             Linker<Entity, Velocity> velocities = spawn.linker(Velocity.class);
 
             Random rng = new Random();
+
+            // У Spawn есть возможность получить итератор по сущностям с указанным количеством сущностей к созданию. В дальнейшем планируется заменить этот метод похожим методом возвращающим Spawn для возможности организации цепочек/пайплайна обработки
             Iterator<Entity> it = spawn.entities(entityCount);
+
             List<Object> components = List.of();
             while (it.hasNext()) {
+                // Каждый вызов next() у итератора создает сущность и возвращает ссылку на нее
                 Entity entity = it.next();
 
                 Position position = new Position();
@@ -190,6 +247,7 @@ public class TestEntityManagerApi {
                 velocity.dx = rng.nextFloat();
                 velocity.dy = rng.nextFloat();
 
+                // Процесс связывания сущностей с компонентами
                 positions.link(entity, position);
                 velocities.link(entity, velocity);
 
@@ -200,7 +258,7 @@ public class TestEntityManagerApi {
         }
 
         // Создание объекта запроса сущностей по указанным типам компонентов
-        View<Entity> view = entityManager.view(Position.class, Velocity.class);
+        View<Entity> view = manager.view(Position.class, Velocity.class);
 
         // Использование try-with-resources конструкции для высвобождения блокировок
         // после выполнения работы с компонентами
@@ -218,6 +276,7 @@ public class TestEntityManagerApi {
 
                 float offset = (float) entityId / entityCount;
 
+                // Получение ссылок на компоненты сущностей через аксессоры. Так же планируется добавить специальный метод для View, который будет принимать лямбду-обработчик всех сущностей с указанным набором компонентов
                 Position p = positions.get(entity);
                 Velocity v = velocities.get(entity);
 

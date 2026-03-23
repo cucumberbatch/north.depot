@@ -38,7 +38,7 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
         
         Class<C> type = (Class<C>) component.getClass();
         Archetype archetype = archetypeStorage.getArchetype(entity);
-        archetypeStorage.alterArchetype(entity, archetype, type);
+        archetypeStorage.ensureArchetypeContains(entity, archetype, type);
         components.store(entity, type, component);
         return component;
     }
@@ -101,8 +101,101 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             };
         }
 
+        @Override public View<E> except(Class<?>... componentTypes) {
+            return new FilteredView<>(this, manager, componentTypes);
+        }
+
         @Override public Iterator<E> iterator() { return entityIterator; }
         @Override public void        close()    {}
+    }
+
+    static final class FilteredView<E> implements View<E> {
+        private final View<E>                 base;
+        private final SimpleEntityManager<E> manager;
+        private final Iterator<E>            iterator;
+
+        FilteredView(View<E> base,
+                      SimpleEntityManager<E> manager,
+                      Class<?>... componentTypes) {
+            if (componentTypes == null) {
+                throw new NullPointerException("Provided componentTypes must not be null!");
+            }
+            for (Class<?> type : componentTypes) {
+                if (type == null) {
+                    throw new NullPointerException("Provided componentTypes must not contain null elements!");
+                }
+            }
+
+            this.base    = base;
+            this.manager = manager;
+            this.iterator = filterIterator(base.iterator(), componentTypes);
+        }
+
+        private Iterator<E> filterIterator(Iterator<E> baseIterator, Class<?>[] excludedTypes) {
+            return new Iterator<>() {
+                private E       next;
+                private boolean nextComputed = false;
+                private boolean hasNextValue = false;
+
+                private void computeNext() {
+                    if (nextComputed) return;
+                    nextComputed = true;
+                    next = null;
+                    hasNextValue = false;
+
+                    while (baseIterator.hasNext()) {
+                        E entity = baseIterator.next();
+                        boolean excluded = false;
+                        for (Class<?> excludedType : excludedTypes) {
+                            @SuppressWarnings("rawtypes")
+                            Class rawType = excludedType;
+                            if (manager.has(entity, rawType)) {
+                                excluded = true;
+                                break;
+                            }
+                        }
+                        if (!excluded) {
+                            next = entity;
+                            hasNextValue = true;
+                            return;
+                        }
+                    }
+                }
+
+                @Override
+                public boolean hasNext() {
+                    computeNext();
+                    return hasNextValue;
+                }
+
+                @Override
+                public E next() {
+                    if (!hasNext()) {
+                        throw new java.util.NoSuchElementException();
+                    }
+                    E result = next;
+                    next = null;
+                    nextComputed = false;
+                    hasNextValue = false;
+                    return result;
+                }
+            };
+        }
+
+        @Override public <C> Accessor<E, C> accessor(Class<C> componentType) {
+            return base.accessor(componentType);
+        }
+
+        @Override public <C> Accessor<E, C> accessor(Class<C> componentType, AccessType accessType) {
+            return base.accessor(componentType, accessType);
+        }
+
+        @Override public View<E> except(Class<?>... componentTypes) {
+            return new FilteredView<>(this, manager, componentTypes);
+        }
+
+        @Override public Iterator<E> iterator() { return iterator; }
+        @Override public void        close()    { base.close(); }
     }
 
     static final class BatchSpawn<E> implements Spawn<E> {
@@ -239,6 +332,20 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
                 return entities;
             });
             
+            registerInArchetype(entity, updatedArchetype);
+        }
+
+        void ensureArchetypeContains(E entity, Archetype archetype, Class<?> componentType) {
+            // Adding a component should NOT "toggle it off" when it's already present.
+            if (archetype.contains(componentType)) {
+                return;
+            }
+
+            Archetype updatedArchetype = archetype.add(componentType);
+            archetypeGroups.computeIfPresent(archetype, (key, entities) -> {
+                entities.remove(entity);
+                return entities;
+            });
             registerInArchetype(entity, updatedArchetype);
         }
 

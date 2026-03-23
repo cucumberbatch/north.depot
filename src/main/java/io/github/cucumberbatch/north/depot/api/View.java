@@ -75,4 +75,17 @@ public interface View<E> extends Iterable<E>, Batch<E> {
      */
     <C> Accessor<E, C> accessor(Class<C> componentType, AccessType accessType);
 
+    /**
+     * Excludes entities that have any of the provided component types.
+     *
+     * <p>The resulting {@link View} is still restricted to entities matched by the
+     * parent {@code view(...)} query; this method further filters them by removing
+     * entities that contain at least one of {@code componentTypes}.</p>
+     *
+     * @param componentTypes component types that must NOT be present on iterated entities
+     * @return a new {@link View} instance which filters the iteration results
+     * @throws NullPointerException if {@code componentTypes} is null or contains null elements
+     */
+    View<E> except(Class<?>... componentTypes);
+
 }

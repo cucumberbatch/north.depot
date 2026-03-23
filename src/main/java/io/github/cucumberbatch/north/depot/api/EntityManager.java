@@ -44,13 +44,38 @@ public interface EntityManager<E> {
      * Checks if an {@code entity} has a component of provided {@code componentType}
      * 
      * @param entity an entity instance that was created via
-     *   {@link org.north.core.architecture.v2.ecs.Spawn#spawn} or other similar method
+     *   {@link Spawn#spawn} or other similar method
      * @param componentType is a class of some object (or component)
      * @return {@code true} if {@code entity} has a component of {@code componentType},
      *   {@code false} - otherwise
      * @throws NullPointerException if {@code entity} or {@code componentType} is null
      */
     <C> boolean has(E entity, Class<C> componentType);
+
+    /**
+     * Checks if an {@code entity} has components of all provided {@code componentTypes}.
+     *
+     * @param entity an entity instance that was created via {@link Spawn#spawn} or other similar method
+     * @param componentTypes component types that must all be present on the entity
+     * @return {@code true} if the entity has every component type from {@code componentTypes}, otherwise {@code false}
+     * @throws NullPointerException if {@code entity}, {@code componentTypes}, or any element of {@code componentTypes} is null
+     */
+    default boolean has(E entity, Class<?>... componentTypes) {
+        if (componentTypes == null) {
+            throw new NullPointerException("Provided componentTypes must not be null!");
+        }
+        for (Class<?> componentType : componentTypes) {
+            if (componentType == null) {
+                throw new NullPointerException("Provided componentTypes must not contain null!");
+            }
+            @SuppressWarnings("rawtypes")
+            Class rawType = componentType;
+            if (!has(entity, rawType)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * Detaches component of {@code componentType} from specific {@code entity} and
