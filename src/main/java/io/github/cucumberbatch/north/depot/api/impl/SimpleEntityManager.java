@@ -7,9 +7,12 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Collections;
+import java.util.NoSuchElementException;
 import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
 
@@ -80,13 +83,15 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
 
     static final class QueryView<E> implements View<E> {
         private final SimpleEntityManager<E> manager;
-        private final Iterator<E>            entityIterator;
+        private final ArchetypeStorage<E>    storage;
+        private final Archetype              archetype;
 
         QueryView(SimpleEntityManager<E> manager,
                   ArchetypeStorage<E>    storage,
                   Archetype              archetype) {
-            this.manager        = manager;
-            this.entityIterator = storage.entityIterator(archetype);
+            this.manager   = manager;
+            this.storage   = storage;
+            this.archetype = archetype;
         }
 
         @Override public <C> Accessor<E, C> accessor(Class<C> type) {
@@ -105,33 +110,25 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             return new FilteredView<>(this, manager, componentTypes);
         }
 
-        @Override public Iterator<E> iterator() { return entityIterator; }
+        @Override public Iterator<E> iterator() { return storage.entityIterator(archetype); }
         @Override public void        close()    {}
     }
 
     static final class FilteredView<E> implements View<E> {
-        private final View<E>                 base;
+        private final View<E>                base;
         private final SimpleEntityManager<E> manager;
-        private final Iterator<E>            iterator;
+        private final Class<?>[]             excludedTypes;
 
-        FilteredView(View<E> base,
-                      SimpleEntityManager<E> manager,
-                      Class<?>... componentTypes) {
-            if (componentTypes == null) {
-                throw new NullPointerException("Provided componentTypes must not be null!");
-            }
-            for (Class<?> type : componentTypes) {
-                if (type == null) {
-                    throw new NullPointerException("Provided componentTypes must not contain null elements!");
-                }
-            }
-
-            this.base    = base;
-            this.manager = manager;
-            this.iterator = filterIterator(base.iterator(), componentTypes);
+        FilteredView(View<E>                base,
+                     SimpleEntityManager<E> manager,
+                     Class<?>...            componentTypes) {
+            validateComponentTypes(componentTypes);
+            this.base          = base;
+            this.manager       = manager;
+            this.excludedTypes = componentTypes.clone();
         }
 
-        private Iterator<E> filterIterator(Iterator<E> baseIterator, Class<?>[] excludedTypes) {
+        private Iterator<E> filterIterator(Iterator<E> baseIterator, Class<?>[] excludedTypesSnapshot) {
             return new Iterator<>() {
                 private E       next;
                 private boolean nextComputed = false;
@@ -140,16 +137,14 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
                 private void computeNext() {
                     if (nextComputed) return;
                     nextComputed = true;
-                    next = null;
                     hasNextValue = false;
+                    next = null;
 
                     while (baseIterator.hasNext()) {
                         E entity = baseIterator.next();
                         boolean excluded = false;
-                        for (Class<?> excludedType : excludedTypes) {
-                            @SuppressWarnings("rawtypes")
-                            Class rawType = excludedType;
-                            if (manager.has(entity, rawType)) {
+                        for (Class<?> excludedType : excludedTypesSnapshot) {
+                            if (manager.has(entity, excludedType)) {
                                 excluded = true;
                                 break;
                             }
@@ -171,7 +166,7 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
                 @Override
                 public E next() {
                     if (!hasNext()) {
-                        throw new java.util.NoSuchElementException();
+                        throw new NoSuchElementException();
                     }
                     E result = next;
                     next = null;
@@ -194,7 +189,7 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             return new FilteredView<>(this, manager, componentTypes);
         }
 
-        @Override public Iterator<E> iterator() { return iterator; }
+        @Override public Iterator<E> iterator() { return filterIterator(base.iterator(), excludedTypes); }
         @Override public void        close()    { base.close(); }
     }
 
@@ -232,7 +227,13 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             return new Iterator<>() {
                 int remaining = count;
                 @Override public boolean hasNext() { return remaining   > 0; }
-                @Override public E       next()    { return remaining-- > 0 ? spawn() : null; }
+                @Override public E       next()    {
+                    if (!hasNext()) {
+                        throw new NoSuchElementException();
+                    }
+                    remaining--;
+                    return spawn();
+                }
             };
         }
 
@@ -306,19 +307,22 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
     }
 
     static final class ArchetypeStorage<E> {
-        private final Map<E, Archetype>       entityTypes     = new HashMap<>();
-        private final Map<Archetype, List<E>> archetypeGroups = new HashMap<>();
+        private static final Archetype EMPTY_ARCHETYPE = new Archetype();
+        
+        private final Map<E, Archetype>      entityTypes     = new HashMap<>();
+        private final Map<Archetype, Set<E>> archetypeGroups = new HashMap<>();
 
         Archetype getArchetype(E entity) {
-            return entityTypes.getOrDefault(entity, new Archetype());
+            return entityTypes.getOrDefault(entity, EMPTY_ARCHETYPE);
         }
 
         boolean hasComponent(E entity, Class<?> type) {
-            return entityTypes.get(entity).contains(type);
+            Archetype archetype = entityTypes.get(entity);
+            return archetype != null && archetype.contains(type);
         }
 
         void registerInArchetype(E entity, Archetype archetype) {
-            archetypeGroups.computeIfAbsent(archetype, key -> new ArrayList<>()).add(entity);
+            archetypeGroups.computeIfAbsent(archetype, key -> new LinkedHashSet<>()).add(entity);
             entityTypes.put(entity, archetype);
         }
 
@@ -326,13 +330,7 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             Archetype updatedArchetype = archetype.contains(alteringType)
                     ? archetype.remove(alteringType)
                     : archetype.add(alteringType);
-
-            archetypeGroups.computeIfPresent(archetype, (key, entities) -> {
-                entities.remove(entity);
-                return entities;
-            });
-            
-            registerInArchetype(entity, updatedArchetype);
+            moveEntityToArchetype(entity, archetype, updatedArchetype);
         }
 
         void ensureArchetypeContains(E entity, Archetype archetype, Class<?> componentType) {
@@ -342,18 +340,52 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
             }
 
             Archetype updatedArchetype = archetype.add(componentType);
-            archetypeGroups.computeIfPresent(archetype, (key, entities) -> {
-                entities.remove(entity);
-                return entities;
-            });
+            moveEntityToArchetype(entity, archetype, updatedArchetype);
+        }
+
+        private void moveEntityToArchetype(E entity, Archetype currentArchetype, Archetype updatedArchetype) {
+            Set<E> currentGroup = archetypeGroups.get(currentArchetype);
+            if (currentGroup != null) {
+                currentGroup.remove(entity);
+                if (currentGroup.isEmpty()) {
+                    archetypeGroups.remove(currentArchetype);
+                }
+            }
             registerInArchetype(entity, updatedArchetype);
         }
 
         Iterator<E> entityIterator(Archetype archetype) {
-            return archetypeGroups.entrySet().stream()
-                    .filter(entry -> entry.getKey().contains(archetype))
-                    .flatMap(entry -> entry.getValue().stream())
-                    .iterator();
+            List<Set<E>> matchingGroups = new ArrayList<>();
+            for (Map.Entry<Archetype, Set<E>> entry : archetypeGroups.entrySet()) {
+                if (entry.getKey().contains(archetype)) {
+                    matchingGroups.add(entry.getValue());
+                }
+            }
+
+            if (matchingGroups.isEmpty()) {
+                return Collections.emptyIterator();
+            }
+
+            return new Iterator<>() {
+                private final Iterator<Set<E>> groupIterator = matchingGroups.iterator();
+                private Iterator<E>            current       = Collections.emptyIterator();
+
+                @Override
+                public boolean hasNext() {
+                    while (!current.hasNext() && groupIterator.hasNext()) {
+                        current = groupIterator.next().iterator();
+                    }
+                    return current.hasNext();
+                }
+
+                @Override
+                public E next() {
+                    if (!hasNext()) {
+                        throw new NoSuchElementException();
+                    }
+                    return current.next();
+                }
+            };
         }
 
     }
@@ -371,5 +403,16 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
 
         E   create()        { return factory.apply(nextId++); }
         int getId(E entity) { return idExtractor.applyAsInt(entity); }
+    }
+
+    private static void validateComponentTypes(Class<?>... componentTypes) {
+        if (componentTypes == null) {
+            throw new NullPointerException("Provided componentTypes must not be null!");
+        }
+        for (Class<?> type : componentTypes) {
+            if (type == null) {
+                throw new NullPointerException("Provided componentTypes must not contain null elements!");
+            }
+        }
     }
 }

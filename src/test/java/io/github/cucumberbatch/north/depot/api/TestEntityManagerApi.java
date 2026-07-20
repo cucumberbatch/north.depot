@@ -1,14 +1,15 @@
 package io.github.cucumberbatch.north.depot.api;
 
+import io.github.cucumberbatch.north.depot.api.impl.ArchetypeEntityManager;
 import io.github.cucumberbatch.north.depot.api.impl.SimpleEntityManager;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,6 +33,13 @@ public class TestEntityManagerApi {
             Velocity.class
     ).collect(Collectors.toSet());
 
+    private EntityManager<Integer> manager;
+
+    @BeforeEach
+    public void initEntityManager() {
+        this.manager = new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+    }
+
 
     @Test
     public void testEntityManagerCreation() {
@@ -49,8 +57,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testEntitySingleCreation() {
-        EntityManager<Integer> manager =
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+//        EntityManager<Integer> manager =
+//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
 
         Integer singleEntityId = null;
 
@@ -66,8 +74,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testHasAndGetComponentAfterAddUsingEntityManager() {
-        EntityManager<Integer> manager =
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+//        EntityManager<Integer> manager =
+//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
 
         Integer singleEntityId = null;
 
@@ -88,8 +96,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testViewForSingleEntityWithOneComponent() {
-        EntityManager<Integer> manager =
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+//        EntityManager<Integer> manager =
+//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
 
         Integer singleEntityId = null;
 
@@ -118,8 +126,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testViewExceptFiltersEntities() {
-        EntityManager<Integer> manager =
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+//        EntityManager<Integer> manager =
+//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
 
         int positionOnlyCount = 5;
         int positionAndVelocityCount = 2;
@@ -166,8 +174,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testEntityCreationWithComponentsUsingLinker() {
-        EntityManager<Integer> manager =
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+//        EntityManager<Integer> manager =
+//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
 
         //creating of 10 entities with Position component
         int expectedEntityCount = 10;
@@ -215,7 +223,7 @@ public class TestEntityManagerApi {
     @Test
     public void testEntireEntityManagerApi() {
         // Создание простого менеджера сущностей. Пользователь предоставляет функцию создания сущностей своего типа, а так же метод получения идентификатора этой сущности
-        EntityManager<Entity> manager =
+        EntityManager<Entity> entityManager =
                 new SimpleEntityManager<>(Entity::new, Entity::getId);
 
         int entityCount = 1;
@@ -223,7 +231,7 @@ public class TestEntityManagerApi {
         int createdEntityCount = 0;
 
         // Создание самих сущностей происходит через менеджер сущностей. Для этого вызывается метод spawn, принимающий vararg массив типов компонентов для предварительного размещения новых сущностей в специфическом архетипе. Метод возвращает AutoCloseable, поэтому используется конструкция try-with-resources.
-        try (Spawn<Entity> spawn = manager.spawn(Position.class, Velocity.class)) {
+        try (Spawn<Entity> spawn = entityManager.spawn(Position.class, Velocity.class)) {
             
             // Процесс связывания настоящих компонентов с сущностями лежит на пользователе, менеджер сущностей не занимается их созданием. Для этого используется механизм связывания через параметризированный Linker
             Linker<Entity, Position> positions  = spawn.linker(Position.class);
@@ -258,7 +266,7 @@ public class TestEntityManagerApi {
         }
 
         // Создание объекта запроса сущностей по указанным типам компонентов
-        View<Entity> view = manager.view(Position.class, Velocity.class);
+        View<Entity> view = entityManager.view(Position.class, Velocity.class);
 
         // Использование try-with-resources конструкции для высвобождения блокировок
         // после выполнения работы с компонентами
@@ -290,8 +298,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testSpawnedEntityContainsComponents() {
-        EntityManager<Integer> manager =
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+//        EntityManager<Integer> manager =
+//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
 
         try (Spawn<Integer> spawn = manager.spawn(Position.class, Velocity.class)) {
             Integer entityHandle = spawn.spawn();
@@ -304,8 +312,8 @@ public class TestEntityManagerApi {
     
     @Test
     public void testSpawnedEntityComponentAddition() {
-        EntityManager<Integer> manager =
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+//        EntityManager<Integer> manager =
+//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
 
         try (Spawn<Integer> spawn = manager.spawn(Position.class)) {
             Integer entityHandle = spawn.spawn();
@@ -322,8 +330,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testSpawnedEntityComponentLinkageAndRemoval() {
-        EntityManager<Integer> manager =
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+//        EntityManager<Integer> manager =
+//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
 
         try (Spawn<Integer> spawn = manager.spawn(Position.class)) {
             Integer entityHandle = spawn.spawn();
