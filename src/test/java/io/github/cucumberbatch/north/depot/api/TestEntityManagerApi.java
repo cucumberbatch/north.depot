@@ -1,6 +1,5 @@
 package io.github.cucumberbatch.north.depot.api;
 
-import io.github.cucumberbatch.north.depot.api.impl.ArchetypeEntityManager;
 import io.github.cucumberbatch.north.depot.api.impl.SimpleEntityManager;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -9,60 +8,24 @@ import org.junit.jupiter.api.Test;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class TestEntityManagerApi {
-   
-    private static final class Entity {
-        private final int id;
-
-        public Entity(int id) { this.id = id; }
-        public int getId()    { return id; }
-    }
-
-    public static final class Position { float  x,  y; }
-    public static final class Velocity { float dx, dy; }
-    public static final class Health   { int value;    }
+public abstract class TestEntityManagerApi<E> {
+    private EntityManager<E> manager;
     
-    private static final Set<Class<?>> componentTypes = Stream.of(
-            Position.class,
-            Velocity.class
-    ).collect(Collectors.toSet());
-
-    private EntityManager<Integer> manager;
+    public abstract EntityManager<E> getEntityManager();
 
     @BeforeEach
-    public void initEntityManager() {
-        this.manager = new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
-    }
-
-
-    @Test
-    public void testEntityManagerCreation() {
-        assertDoesNotThrow(() ->
-                new SimpleEntityManager<>(Entity::new, Entity::getId)
-        );
-    }
-
-    @Test
-    public void testIntEntityManagerCreation() {
-        assertDoesNotThrow(() ->
-                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue)
-        );
+    public void setUpEntityManager() {
+        this.manager = getEntityManager();
     }
 
     @Test
     public void testEntitySingleCreation() {
-//        EntityManager<Integer> manager =
-//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+        E singleEntityId = null;
 
-        Integer singleEntityId = null;
-
-        try (Spawn<Integer> spawn = manager.spawn()) {
+        try (Spawn<E> spawn = manager.spawn()) {
             singleEntityId = spawn.spawn();
         }
 
@@ -74,12 +37,9 @@ public class TestEntityManagerApi {
 
     @Test
     public void testHasAndGetComponentAfterAddUsingEntityManager() {
-//        EntityManager<Integer> manager =
-//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+        E singleEntityId = null;
 
-        Integer singleEntityId = null;
-
-        try (Spawn<Integer> spawn = manager.spawn()) {
+        try (Spawn<E> spawn = manager.spawn()) {
             singleEntityId = spawn.spawn();
         }
 
@@ -95,13 +55,30 @@ public class TestEntityManagerApi {
     }
 
     @Test
+    public void testSpawnAndViewOfSingleEntityWithoutComponents() {
+        int expectedEntityCount = 1;
+        int actualEntityCount = 0;
+        
+        try (Spawn<E> spawn = manager.spawn()) {
+            for (int count = 0; count < expectedEntityCount; count++) {
+                spawn.spawn();
+            }
+        }
+
+        try (View<E> view = manager.view()) {
+            for (E entity : view) {
+                actualEntityCount++;
+            }
+        }
+
+        assertEquals(expectedEntityCount, actualEntityCount);
+    }
+    
+    @Test
     public void testViewForSingleEntityWithOneComponent() {
-//        EntityManager<Integer> manager =
-//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
+        E singleEntityId = null;
 
-        Integer singleEntityId = null;
-
-        try (Spawn<Integer> spawn = manager.spawn()) {
+        try (Spawn<E> spawn = manager.spawn()) {
             singleEntityId = spawn.spawn();
         }
 
@@ -111,9 +88,9 @@ public class TestEntityManagerApi {
 
         int entityCount = 0;
         Position foundPosition = null;
-        try (View<Integer> view = manager.view(Position.class)) {
-            Accessor<Integer, Position> pos = view.accessor(Position.class);
-            for (Integer entity: view) {
+        try (View<E> view = manager.view(Position.class)) {
+            Accessor<E, Position> pos = view.accessor(Position.class);
+            for (E entity: view) {
                 foundPosition = pos.get(entity);
                 entityCount++;
             }
@@ -126,16 +103,13 @@ public class TestEntityManagerApi {
 
     @Test
     public void testViewExceptFiltersEntities() {
-//        EntityManager<Integer> manager =
-//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
-
         int positionOnlyCount = 5;
         int positionAndVelocityCount = 2;
 
-        try (Spawn<Integer> spawn = manager.spawn(Position.class)) {
-            Linker<Integer, Position> pos = spawn.linker(Position.class);
+        try (Spawn<E> spawn = manager.spawn(Position.class)) {
+            Linker<E, Position> pos = spawn.linker(Position.class);
             for (int i = 0; i < positionOnlyCount; i++) {
-                Integer entity = spawn.spawn();
+                E entity = spawn.spawn();
                 Position position = new Position();
                 position.x = i + 1f;
                 position.y = i + 1f;
@@ -143,11 +117,11 @@ public class TestEntityManagerApi {
             }
         }
 
-        try (Spawn<Integer> spawn = manager.spawn(Position.class, Velocity.class)) {
-            Linker<Integer, Position> pos = spawn.linker(Position.class);
-            Linker<Integer, Velocity> vel = spawn.linker(Velocity.class);
+        try (Spawn<E> spawn = manager.spawn(Position.class, Velocity.class)) {
+            Linker<E, Position> pos = spawn.linker(Position.class);
+            Linker<E, Velocity> vel = spawn.linker(Velocity.class);
             for (int i = 0; i < positionAndVelocityCount; i++) {
-                Integer entity = spawn.spawn();
+                E entity = spawn.spawn();
 
                 Position position = new Position();
                 position.x = i + 10f;
@@ -163,8 +137,8 @@ public class TestEntityManagerApi {
         }
 
         int actualCount = 0;
-        try (View<Integer> view = manager.view(Position.class).except(Velocity.class)) {
-            for (Integer entity : view) {
+        try (View<E> view = manager.view(Position.class).except(Velocity.class)) {
+            for (E entity : view) {
                 actualCount++;
             }
         }
@@ -174,13 +148,10 @@ public class TestEntityManagerApi {
 
     @Test
     public void testEntityCreationWithComponentsUsingLinker() {
-//        EntityManager<Integer> manager =
-//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
-
         //creating of 10 entities with Position component
         int expectedEntityCount = 10;
-        try (Spawn<Integer> spawn = manager.spawn()) {
-            Linker<Integer, Position> pos = spawn.linker(Position.class);
+        try (Spawn<E> spawn = manager.spawn()) {
+            Linker<E, Position> pos = spawn.linker(Position.class);
             for (int count = 0; count < expectedEntityCount; count++) {
                 Position position = new Position();
                 position.x = count + 1f;
@@ -191,28 +162,28 @@ public class TestEntityManagerApi {
 
         //checking if those entities have this components
         int actualEntityCount = 0;
-        try (View<Integer> view = manager.view(Position.class)) {
-            for (Integer entity: view) actualEntityCount++;
+        try (View<E> view = manager.view(Position.class)) {
+            for (E entity: view) actualEntityCount++;
         }
 
         assertEquals(expectedEntityCount, actualEntityCount, "Created and queried entities count does not match!");
 
-        Integer firstFoundEntity = null;
-        try (View<Integer> view = manager.view(Position.class)) { firstFoundEntity = view.iterator().next(); }
+        E firstFoundEntity = null;
+        try (View<E> view = manager.view(Position.class)) { firstFoundEntity = view.iterator().next(); }
 
         //change component set for one of entities
         manager.add(firstFoundEntity, new Velocity());
         manager.remove(firstFoundEntity, Position.class);
 
         int velocitiesCount = 0;
-        try (View<Integer> view = manager.view(Velocity.class)) {
-            for (Integer entity: view) velocitiesCount++;
+        try (View<E> view = manager.view(Velocity.class)) {
+            for (E entity: view) velocitiesCount++;
         }
 
         
         int positionsCount = 0;
-        try (View<Integer> view = manager.view(Position.class)) {
-            for (Integer entity: view) positionsCount++;
+        try (View<E> view = manager.view(Position.class)) {
+            for (E entity: view) positionsCount++;
         }
 
 
@@ -222,12 +193,12 @@ public class TestEntityManagerApi {
 
     @Test
     public void testEntireEntityManagerApi() {
+
         // Создание простого менеджера сущностей. Пользователь предоставляет функцию создания сущностей своего типа, а так же метод получения идентификатора этой сущности
         EntityManager<Entity> entityManager =
-                new SimpleEntityManager<>(Entity::new, Entity::getId);
+                new SimpleEntityManager<>(Entity::new, Entity::id);
 
         int entityCount = 1;
-
         int createdEntityCount = 0;
 
         // Создание самих сущностей происходит через менеджер сущностей. Для этого вызывается метод spawn, принимающий vararg массив типов компонентов для предварительного размещения новых сущностей в специфическом архетипе. Метод возвращает AutoCloseable, поэтому используется конструкция try-with-resources.
@@ -237,13 +208,13 @@ public class TestEntityManagerApi {
             Linker<Entity, Position> positions  = spawn.linker(Position.class);
             Linker<Entity, Velocity> velocities = spawn.linker(Velocity.class);
 
-            Random rng = new Random();
-
             // У Spawn есть возможность получить итератор по сущностям с указанным количеством сущностей к созданию. В дальнейшем планируется заменить этот метод похожим методом возвращающим Spawn для возможности организации цепочек/пайплайна обработки
             Iterator<Entity> it = spawn.entities(entityCount);
 
+            Random rng = new Random();
             List<Object> components = List.of();
             while (it.hasNext()) {
+
                 // Каждый вызов next() у итератора создает сущность и возвращает ссылку на нее
                 Entity entity = it.next();
 
@@ -263,8 +234,11 @@ public class TestEntityManagerApi {
 
                 createdEntityCount++;
             }
+            
+            assertEquals(entityCount, createdEntityCount);
+            assertEquals(entityCount, components.size() / 2);
         }
-
+        
         // Создание объекта запроса сущностей по указанным типам компонентов
         View<Entity> view = entityManager.view(Position.class, Velocity.class);
 
@@ -280,7 +254,7 @@ public class TestEntityManagerApi {
             for (Entity entity: view) {
 
                 // Возможно обращение к entity
-                long entityId = entity.getId();
+                long entityId = entity.id();
 
                 float offset = (float) entityId / entityCount;
 
@@ -298,11 +272,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testSpawnedEntityContainsComponents() {
-//        EntityManager<Integer> manager =
-//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
-
-        try (Spawn<Integer> spawn = manager.spawn(Position.class, Velocity.class)) {
-            Integer entityHandle = spawn.spawn();
+        try (Spawn<E> spawn = manager.spawn(Position.class, Velocity.class)) {
+            E entityHandle = spawn.spawn();
 
             assertTrue(manager.has(entityHandle, Position.class));
             assertTrue(manager.has(entityHandle, Velocity.class));
@@ -312,11 +283,8 @@ public class TestEntityManagerApi {
     
     @Test
     public void testSpawnedEntityComponentAddition() {
-//        EntityManager<Integer> manager =
-//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
-
-        try (Spawn<Integer> spawn = manager.spawn(Position.class)) {
-            Integer entityHandle = spawn.spawn();
+        try (Spawn<E> spawn = manager.spawn(Position.class)) {
+            E entityHandle = spawn.spawn();
 
             assertTrue(manager.has(entityHandle, Position.class));
             assertFalse(manager.has(entityHandle, Velocity.class));
@@ -330,11 +298,8 @@ public class TestEntityManagerApi {
 
     @Test
     public void testSpawnedEntityComponentLinkageAndRemoval() {
-//        EntityManager<Integer> manager =
-//                new SimpleEntityManager<>(Integer::valueOf, Integer::intValue);
-
-        try (Spawn<Integer> spawn = manager.spawn(Position.class)) {
-            Integer entityHandle = spawn.spawn();
+        try (Spawn<E> spawn = manager.spawn(Position.class)) {
+            E entityHandle = spawn.spawn();
 
             assertTrue(manager.has(entityHandle, Position.class));
             assertFalse(manager.has(entityHandle, Velocity.class));

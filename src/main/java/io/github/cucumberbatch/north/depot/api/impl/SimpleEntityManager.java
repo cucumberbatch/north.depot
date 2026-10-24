@@ -302,7 +302,12 @@ public final class SimpleEntityManager<E> implements EntityManager<E> {
         }
 
         void remove(E entity, Class<?> type) {
-            storage.get(entity).remove(type);
+            // a component type might be reserved by the archetype without
+            // an actual instance being stored for it
+            Map<Class<?>, Object> entityComponents = storage.get(entity);
+            if (entityComponents != null) {
+                entityComponents.remove(type);
+            }
         }
     }
 

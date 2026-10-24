@@ -1,0 +1,9 @@
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/AccessType.java
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/Accessor.java
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/Batch.java
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/EntityManager.java
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/Linker.java
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/Spawn.java
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/View.java
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/impl/ArchetypeEntityManager.java
+/home/vladislav/dev/north.depot/src/main/java/io/github/cucumberbatch/north/depot/api/impl/SimpleEntityManager.java
