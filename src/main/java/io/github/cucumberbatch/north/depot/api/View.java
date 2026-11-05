@@ -23,7 +23,7 @@ package io.github.cucumberbatch.north.depot.api;
  *
  * <p>Typical usage pattern:
  * <pre>{@code
- *     try (QueryResult<EntityId> result = em.viewAllWith(Position.class, Velocity.class)) {
+ *     try (View<EntityId> result = em.view(Position.class, Velocity.class)) {
  *         ComponentAccessor<EntityId, Position> positions  = result.accessor(Position.class);
  *         ComponentAccessor<EntityId, Velocity> velocities = result.accessor(Velocity.class);
  *
@@ -50,7 +50,7 @@ public interface View<E> extends Iterable<E>, Batch<E> {
      * default {@link AccessType#READ} access.
      *
      * <p>The component type <b>must</b> be one of the types specified in the
-     * parent {@link EntityManager#view queryAllWith(...)} call that created
+     * parent {@link EntityManager#view query(...)} call that created
      * this {@link View}.</p>
      *
      * @param componentType the component class to access

@@ -22,9 +22,10 @@ public interface EntityManager<E> {
 
     /**
      * Attaches provided {@code component} instance to specific {@code entity}.
-     * 
-     * @param entity
-     * @param component  
+     *
+     * @param entity an entity instance that was created via
+     *   {@link Spawn#spawn} or other similar method
+     * @param component is an object (or component) instance
      * @return 
      * @throws NullPointerException if {@code entity} or {@code componentType} is null
      */
@@ -33,8 +34,9 @@ public interface EntityManager<E> {
     /**
      * Returns a component of {@code componentType} that is attached to {@code entity}.
      *
-     * @param entity
-     * @param componentType
+     * @param entity an entity instance that was created via
+     *   {@link Spawn#spawn} or other similar method
+     * @param componentType is a class of some object (or component)
      * @return 
      * @throws NullPointerException if {@code entity} or {@code componentType} is null
      */ 

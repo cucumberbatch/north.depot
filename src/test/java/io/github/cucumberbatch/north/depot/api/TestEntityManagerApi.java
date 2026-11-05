@@ -5,9 +5,7 @@ import io.github.cucumberbatch.north.depot.api.impl.SimpleEntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -21,33 +19,106 @@ public abstract class TestEntityManagerApi<E> {
         this.manager = getEntityManager();
     }
 
+
+    @Test
+    public void testEntireEntityManagerApi() {
+
+        // Creation of a simple entity manager. The user must provide a function of entity creation, and also a function of entity extraction by id
+        EntityManager<Entity> entityManager =
+                new SimpleEntityManager<>(Entity::new, Entity::id);
+
+        int entityCount = 1;
+        int createdEntityCount = 0;
+
+        // The entities themselves are created through the entity manager. To do this, the spawn method is called, which accepts a vararg array of component types to pre-place new entities in a specific archetype. The method returns AutoCloseable, so the try-with-resources construct is used.
+        try (Spawn<Entity> spawn = entityManager.spawn(Position.class, Velocity.class)) {
+
+            // The process of linking real components to entities is the responsibility of the user, and the entity manager does not create them. To do this, a binding mechanism is used through a parameterized Linker.
+            Linker<Entity, Position> positions  = spawn.linker(Position.class);
+            Linker<Entity, Velocity> velocities = spawn.linker(Velocity.class);
+
+            // Spawn has the option to get an iterator on entities with a specified number of entities to create. In the future, it is planned to replace this method with a similar method that returns Spawn to enable the organization of processing chains/pipelines.
+            Iterator<Entity> it = spawn.entities(entityCount);
+
+            Random rng = new Random();
+            List<Object> components = List.of();
+            while (it.hasNext()) {
+
+                // Each iterator's next() call creates an entity and returns a reference to it.
+                Entity entity = it.next();
+
+                Position position = new Position();
+                position.x = rng.nextFloat();
+                position.y = rng.nextFloat();
+
+                Velocity velocity = new Velocity();
+                velocity.dx = rng.nextFloat();
+                velocity.dy = rng.nextFloat();
+
+                // The process of linking entities to components
+                positions.link(entity, position);
+                velocities.link(entity, velocity);
+
+                components = List.of(position, velocity);
+
+                createdEntityCount++;
+            }
+
+            assertEquals(entityCount, createdEntityCount);
+            assertEquals(entityCount, components.size() / 2);
+        }
+
+        // Creating an entity request object for the specified types of components
+        View<Entity> view = entityManager.view(Position.class, Velocity.class);
+
+        // Using a try-with-resources construct to release locks after working with the components
+        try (view) {
+
+            // Declaring accesses by component type (read/write)
+            Accessor<Entity, Velocity> velocities = view.accessor(Velocity.class, AccessType.READ);
+            Accessor<Entity, Position> positions  = view.accessor(Position.class, AccessType.WRITE);
+
+            // Iterating based on the result (a set of entities from an iterated collection of archetypes/tables)
+            for (Entity entity: view) {
+
+                // It is possible to access the entity
+                long entityId = entity.id();
+
+                float offset = (float) entityId / entityCount;
+
+                // Getting references to entity components through accessors. It is also planned to add a special method for the View, which will accept a lambda handler for all entities with the specified set of components.
+                Position p = positions.get(entity);
+                Velocity v = velocities.get(entity);
+
+                p.x = p.x + v.dx + offset;
+                p.y = p.y + v.dy - offset;
+
+            }
+        }
+    }
+
     @Test
     public void testEntitySingleCreation() {
-        E singleEntityId = null;
+        E singleEntityId;
 
         try (Spawn<E> spawn = manager.spawn()) {
             singleEntityId = spawn.spawn();
         }
 
         assertNotNull(singleEntityId, "Id of created entity must not be null!");
-
-        // not sure about that...
-        //assertEquals(1, singleEntityId, "The first entity generated via entity manager must have an id=1!");
     }
 
     @Test
     public void testHasAndGetComponentAfterAddUsingEntityManager() {
-        E singleEntityId = null;
+        E singleEntityId;
 
         try (Spawn<E> spawn = manager.spawn()) {
             singleEntityId = spawn.spawn();
         }
 
-        // adding a component to an entity
         Position position = new Position();
         Position createdPosition = manager.add(singleEntityId, position);
 
-        // added Transform must be linked with existing entity
         assertTrue(manager.has(singleEntityId, Position.class), "Previously added component must be linked with created entity!");
         assertNotNull(manager.get(singleEntityId, Position.class), "Of course, a component instance that was linked with entity must be returned on manager.get() call!");
         assertSame(position, createdPosition, "The component which returned by add() method must be the same as provided!");
@@ -76,7 +147,7 @@ public abstract class TestEntityManagerApi<E> {
     
     @Test
     public void testViewForSingleEntityWithOneComponent() {
-        E singleEntityId = null;
+        E singleEntityId;
 
         try (Spawn<E> spawn = manager.spawn()) {
             singleEntityId = spawn.spawn();
@@ -148,7 +219,6 @@ public abstract class TestEntityManagerApi<E> {
 
     @Test
     public void testEntityCreationWithComponentsUsingLinker() {
-        //creating of 10 entities with Position component
         int expectedEntityCount = 10;
         try (Spawn<E> spawn = manager.spawn()) {
             Linker<E, Position> pos = spawn.linker(Position.class);
@@ -160,7 +230,6 @@ public abstract class TestEntityManagerApi<E> {
             }
         }
 
-        //checking if those entities have this components
         int actualEntityCount = 0;
         try (View<E> view = manager.view(Position.class)) {
             for (E entity: view) actualEntityCount++;
@@ -192,129 +261,212 @@ public abstract class TestEntityManagerApi<E> {
     }
 
     @Test
-    public void testEntireEntityManagerApi() {
-
-        // Создание простого менеджера сущностей. Пользователь предоставляет функцию создания сущностей своего типа, а так же метод получения идентификатора этой сущности
-        EntityManager<Entity> entityManager =
-                new SimpleEntityManager<>(Entity::new, Entity::id);
-
-        int entityCount = 1;
-        int createdEntityCount = 0;
-
-        // Создание самих сущностей происходит через менеджер сущностей. Для этого вызывается метод spawn, принимающий vararg массив типов компонентов для предварительного размещения новых сущностей в специфическом архетипе. Метод возвращает AutoCloseable, поэтому используется конструкция try-with-resources.
-        try (Spawn<Entity> spawn = entityManager.spawn(Position.class, Velocity.class)) {
-            
-            // Процесс связывания настоящих компонентов с сущностями лежит на пользователе, менеджер сущностей не занимается их созданием. Для этого используется механизм связывания через параметризированный Linker
-            Linker<Entity, Position> positions  = spawn.linker(Position.class);
-            Linker<Entity, Velocity> velocities = spawn.linker(Velocity.class);
-
-            // У Spawn есть возможность получить итератор по сущностям с указанным количеством сущностей к созданию. В дальнейшем планируется заменить этот метод похожим методом возвращающим Spawn для возможности организации цепочек/пайплайна обработки
-            Iterator<Entity> it = spawn.entities(entityCount);
-
-            Random rng = new Random();
-            List<Object> components = List.of();
-            while (it.hasNext()) {
-
-                // Каждый вызов next() у итератора создает сущность и возвращает ссылку на нее
-                Entity entity = it.next();
-
-                Position position = new Position();
-                position.x = rng.nextFloat();
-                position.y = rng.nextFloat();
-
-                Velocity velocity = new Velocity();
-                velocity.dx = rng.nextFloat();
-                velocity.dy = rng.nextFloat();
-
-                // Процесс связывания сущностей с компонентами
-                positions.link(entity, position);
-                velocities.link(entity, velocity);
-
-                components = List.of(position, velocity);
-
-                createdEntityCount++;
-            }
-            
-            assertEquals(entityCount, createdEntityCount);
-            assertEquals(entityCount, components.size() / 2);
-        }
-        
-        // Создание объекта запроса сущностей по указанным типам компонентов
-        View<Entity> view = entityManager.view(Position.class, Velocity.class);
-
-        // Использование try-with-resources конструкции для высвобождения блокировок
-        // после выполнения работы с компонентами
-        try (view) {
-
-            // Декларирование доступов по типам компонентов (чтение/модифицирование)
-            Accessor<Entity, Velocity> velocities = view.accessor(Velocity.class, AccessType.READ);
-            Accessor<Entity, Position> positions  = view.accessor(Position.class, AccessType.WRITE);
-
-            // Итерирование по полученному результату (набору сущностей из итерируемой коллекции архетипов/таблиц)
-            for (Entity entity: view) {
-
-                // Возможно обращение к entity
-                long entityId = entity.id();
-
-                float offset = (float) entityId / entityCount;
-
-                // Получение ссылок на компоненты сущностей через аксессоры. Так же планируется добавить специальный метод для View, который будет принимать лямбду-обработчик всех сущностей с указанным набором компонентов
-                Position p = positions.get(entity);
-                Velocity v = velocities.get(entity);
-
-                p.x = p.x + v.dx + offset;
-                p.y = p.y + v.dy - offset;
-
-            }
-        }
-    
-    }
-
-    @Test
     public void testSpawnedEntityContainsComponents() {
         try (Spawn<E> spawn = manager.spawn(Position.class, Velocity.class)) {
-            E entityHandle = spawn.spawn();
+            E entity = spawn.spawn();
 
-            assertTrue(manager.has(entityHandle, Position.class));
-            assertTrue(manager.has(entityHandle, Velocity.class));
-            assertFalse(manager.has(entityHandle, Health.class));            
+            assertTrue(manager.has(entity, Position.class));
+            assertTrue(manager.has(entity, Velocity.class));
+            assertFalse(manager.has(entity, Health.class));
         }
     }
     
     @Test
     public void testSpawnedEntityComponentAddition() {
         try (Spawn<E> spawn = manager.spawn(Position.class)) {
-            E entityHandle = spawn.spawn();
+            E entity = spawn.spawn();
 
-            assertTrue(manager.has(entityHandle, Position.class));
-            assertFalse(manager.has(entityHandle, Velocity.class));
+            assertTrue(manager.has(entity, Position.class));
+            assertFalse(manager.has(entity, Velocity.class));
 
-            manager.add(entityHandle, new Velocity());
+            manager.add(entity, new Velocity());
             
-            assertTrue(manager.has(entityHandle, Position.class));            
-            assertTrue(manager.has(entityHandle, Velocity.class));            
+            assertTrue(manager.has(entity, Position.class));
+            assertTrue(manager.has(entity, Velocity.class));
         }
     }
 
     @Test
     public void testSpawnedEntityComponentLinkageAndRemoval() {
         try (Spawn<E> spawn = manager.spawn(Position.class)) {
-            E entityHandle = spawn.spawn();
+            E entity = spawn.spawn();
 
-            assertTrue(manager.has(entityHandle, Position.class));
-            assertFalse(manager.has(entityHandle, Velocity.class));
+            assertTrue(manager.has(entity, Position.class));
+            assertFalse(manager.has(entity, Velocity.class));
 
             spawn.linker(Velocity.class)
-                 .link(entityHandle, new Velocity());
+                 .link(entity, new Velocity());
             
-            assertTrue(manager.has(entityHandle, Position.class));            
-            assertTrue(manager.has(entityHandle, Velocity.class));
+            assertTrue(manager.has(entity, Position.class));
+            assertTrue(manager.has(entity, Velocity.class));
 
             assertDoesNotThrow(() -> {
-                assertNotNull(manager.get(entityHandle, Velocity.class));
+                assertNotNull(manager.get(entity, Velocity.class));
             });
         }
     }
+    
+    @Test
+    public void testEntitiesAreSpreadOverTheChunks() {
+        int entityCount = 37;
 
+        try (Spawn<E> spawn = manager.spawn(Position.class)) {
+            Linker<E, Position> positions = spawn.linker(Position.class);
+            for (int i = 0; i < entityCount; i++) {
+                Position position = new Position();
+                position.x = i + 1f;
+                position.y = i + 1f;
+                positions.link(spawn.spawn(), position);
+            }
+        }
+
+        Set<E> foundEntities = new HashSet<>();
+        try (View<E> view = manager.view(Position.class)) {
+            for (E entity : view) {
+                assertTrue(foundEntities.add(entity), "An entity must not be iterated twice!");
+            }
+        }
+
+        assertEquals(entityCount, foundEntities.size(), "All the entities must be reachable through the view!");
+    }
+
+    @Test
+    public void testComponentAdditionKeepsTheOtherComponents() {
+        E entity;
+        Position position = new Position();
+        position.x = 42f;
+
+        try (Spawn<E> spawn = manager.spawn(Position.class)) {
+            entity = spawn.spawn();
+            spawn.linker(Position.class).link(entity, position);
+        }
+
+        Velocity velocity = new Velocity();
+        velocity.dx = 7f;
+        manager.add(entity, velocity);
+
+        assertTrue(manager.has(entity, Position.class), "The entity must keep its Position component!");
+        assertTrue(manager.has(entity, Velocity.class), "The entity must have the added Velocity component!");
+        assertSame(position, manager.get(entity, Position.class), "The Position component must survive the migration!");
+        assertSame(velocity, manager.get(entity, Velocity.class), "The added Velocity component must be reachable!");
+
+        int positionCount = 0;
+        int velocityCount = 0;
+        try (View<E> view = manager.view(Position.class)) {
+            for (E ignored : view) positionCount++;
+        }
+        try (View<E> view = manager.view(Velocity.class)) {
+            for (E ignored : view) velocityCount++;
+        }
+
+        assertEquals(1, positionCount, "The migrated entity must be visible in the view of its components!");
+        assertEquals(1, velocityCount, "The migrated entity must be visible in the view of its components!");
+    }
+
+    @Test
+    public void testComponentRemovalKeepsTheOtherComponents() {
+        E entity;
+        Velocity velocity = new Velocity();
+        velocity.dx = 2f;
+
+        try (Spawn<E> spawn = manager.spawn(Position.class, Velocity.class)) {
+            entity = spawn.spawn();
+            spawn.linker(Position.class).link(entity, new Position());
+            spawn.linker(Velocity.class).link(entity, velocity);
+        }
+
+        assertTrue(manager.remove(entity, Position.class), "The removal of an existing component must be successful!");
+        assertFalse(manager.remove(entity, Health.class), "The removal of a missing component must not be successful!");
+
+        assertFalse(manager.has(entity, Position.class), "The removed component must not be attached anymore!");
+        assertTrue(manager.has(entity, Velocity.class), "The entity must keep its Velocity component!");
+        assertNull(manager.get(entity, Position.class), "The removed component must not be reachable!");
+        assertSame(velocity, manager.get(entity, Velocity.class), "The Velocity component must survive the migration!");
+
+        int positionCount = 0;
+        int velocityCount = 0;
+        try (View<E> view = manager.view(Position.class)) {
+            for (E ignored : view) positionCount++;
+        }
+        try (View<E> view = manager.view(Velocity.class)) {
+            for (E ignored : view) velocityCount++;
+        }
+
+        assertEquals(0, positionCount, "The entity must not be visible in the view of the removed component!");
+        assertEquals(1, velocityCount, "The entity must be visible in the view of the remaining component!");
+    }
+
+    @Test
+    public void testViewIterationIsRepeatable() {
+        try (Spawn<E> spawn = manager.spawn(Position.class)) {
+            spawn.spawn();
+            spawn.spawn();
+        }
+
+        try (View<E> view = manager.view(Position.class)) {
+            int firstIteration  = 0;
+            int secondIteration = 0;
+
+            for (E ignored : view) firstIteration++;
+            for (E ignored : view) secondIteration++;
+
+            assertEquals(2, firstIteration, "The first iteration must see all the entities!");
+            assertEquals(firstIteration, secondIteration, "Every iteration of a view must see the same entities!");
+        }
+    }
+
+    @Test
+    public void testExceptViewIterationIsRepeatable() {
+        try (Spawn<E> spawn = manager.spawn(Position.class)) {
+            spawn.spawn();
+            spawn.spawn();
+        }
+        try (Spawn<E> spawn = manager.spawn(Position.class, Velocity.class)) {
+            spawn.spawn();
+        }
+
+        try (View<E> view = manager.view(Position.class).except(Velocity.class)) {
+            int firstIteration  = 0;
+            int secondIteration = 0;
+
+            for (E ignored : view) firstIteration++;
+            for (E ignored : view) secondIteration++;
+
+            assertEquals(2, firstIteration, "The entities with the excluded component must be filtered out!");
+            assertEquals(firstIteration, secondIteration, "Every iteration of a view must see the same entities!");
+        }
+    }
+
+    @Test
+    public void testSpawnReservesComponentTypes() {
+        E entity;
+
+        try (Spawn<E> spawn = manager.spawn(Position.class, Velocity.class)) {
+            entity = spawn.spawn();
+
+            assertTrue(manager.has(entity, Position.class), "The spawned entity must have the reserved component type!");
+            assertTrue(manager.has(entity, Velocity.class), "The spawned entity must have the reserved component type!");
+            assertFalse(manager.has(entity, Health.class), "The spawned entity must not have the unreserved component type!");
+            assertNull(manager.get(entity, Position.class), "A reserved component type has no instance until it is linked!");
+        }
+    }
+
+    @Test
+    public void testEntitiesIteratorOfRequestedAmount() {
+        int entityCount = 5;
+
+        try (Spawn<E> spawn = manager.spawn()) {
+            Iterator<E> iterator = spawn.entities(entityCount);
+
+            int createdEntityCount = 0;
+            while (iterator.hasNext()) {
+                iterator.next();
+                createdEntityCount++;
+            }
+
+            assertEquals(entityCount, createdEntityCount, "The iterator must create the requested amount of entities!");
+            assertThrows(NoSuchElementException.class, iterator::next, "An exhausted iterator must throw!");
+        }
+    }
 
 }
