@@ -1,9 +1,0 @@
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/api/Entity.java
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/api/Health.java
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/api/Position.java
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/api/TestArchetypeEntityManager.java
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/api/TestArchetypeEntityManagerApi.java
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/api/TestEntityManagerApi.java
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/api/TestSimpleEntityManagerApi.java
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/api/Velocity.java
-/home/vladislav/dev/north.depot/src/test/java/io/github/cucumberbatch/north/depot/benchmark/EntityManagerBenchmark.java
