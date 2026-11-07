@@ -12,3 +12,4 @@
 - [ ] Replace `entities(int count)` of `EntityManager` with something like `amountOf(int count)` (or another appropriate name) in `Spawn` object
 - [ ] Serialization/deserialization of the entire `EntityManager` container
   - [ ] Thoughts about nice API
+- [ ] Investigate the possibility of speeding up entity locations collection in ArchetypeEntityManager by replacing it with sparse array/set implementation
